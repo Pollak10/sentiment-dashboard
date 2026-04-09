@@ -29,7 +29,7 @@ public class DataIngestionService {
     private static final List<String> QUERIES =
             List.of("Bitcoin", "Ethereum", "Apple stock", "Tesla stock");
 
-    @Scheduled(fixedRate = 3600000)
+    @Scheduled(fixedRate = 3600000, initialDelay = 10000)
     public void fetchNewsData() {
         System.out.println("Fetching news data...");
 
