@@ -1,13 +1,11 @@
 package com.Benjamin.sentiment_dashboard.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 @Service
 public class KafkaConsumerService {
-
-    private static final String TOPIC = "sentiment-topic";
 
     @Autowired
     private SentimentService sentimentService;
@@ -15,9 +13,10 @@ public class KafkaConsumerService {
     @Autowired
     private WebSocketService webSocketService;
 
-    @KafkaListener(topics = TOPIC, groupId = "sentiment-group")
-    public void consumeMessage(String message) {
-        System.out.println("Received from Kafka: " + message);
+    @EventListener
+    public void consumeMessage(SentimentEvent event) {
+        String message = event.getMessage();
+        System.out.println("Received event: " + message);
 
         try {
             String[] parts = message.split("\\|\\|");
@@ -30,7 +29,7 @@ public class KafkaConsumerService {
 
             webSocketService.sendSentimentUpdate(sentimentData);
         } catch (Exception e) {
-            System.out.println("Error processing message: " +
+            System.out.println("Error processing event: " +
                     e.getMessage());
         }
     }
