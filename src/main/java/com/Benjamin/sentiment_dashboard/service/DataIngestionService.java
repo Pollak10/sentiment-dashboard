@@ -6,8 +6,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class DataIngestionService {
@@ -18,8 +19,8 @@ public class DataIngestionService {
     @Autowired
     private RestTemplate restTemplate;
 
-    @Value("${api.news.key}")
-    private String newsApiKey;
+    @Value("${api.gnews.key}")
+    private String gnewsKey;
 
     private static final List<String> SYMBOLS =
             List.of("BTC", "ETH", "AAPL", "TSLA");
@@ -27,7 +28,7 @@ public class DataIngestionService {
     private static final List<String> QUERIES =
             List.of("Bitcoin", "Ethereum", "Apple stock", "Tesla stock");
 
-    @Scheduled(fixedRate = 300000)
+    @Scheduled(fixedRate = 3600000)
     public void fetchNewsData() {
         System.out.println("Fetching news data...");
 
@@ -36,30 +37,22 @@ public class DataIngestionService {
             String query = QUERIES.get(i);
 
             try {
-                String url = "https://newsapi.org/v2/everything" +
+                String url = "https://gnews.io/api/v4/search" +
                         "?q=" + query +
-                        "&sortBy=publishedAt" +
-                        "&pageSize=2" +
-                        "&apiKey=" + newsApiKey;
+                        "&lang=en" +
+                        "&max=3" +
+                        "&apikey=" + gnewsKey;
 
-                HttpHeaders headers = new HttpHeaders();
-                headers.set("User-Agent", "SentimentDashboard/1.0");
+                ResponseEntity<String> response =
+                        restTemplate.getForEntity(url, String.class);
 
-                HttpEntity<String> request =
-                        new HttpEntity<>(headers);
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode body = mapper.readTree(response.getBody());
+                JsonNode articles = body.get("articles");
 
-                ResponseEntity<Map> response = restTemplate.exchange(
-                        url, HttpMethod.GET, request, Map.class
-                );
-
-                Map<String, Object> body = response.getBody();
-                List<Map<String, Object>> articles =
-                        (List<Map<String, Object>>) body.get("articles");
-
-                if (articles != null) {
-                    for (Map<String, Object> article : articles) {
-                        String title =
-                                (String) article.get("title");
+                if (articles != null && articles.isArray()) {
+                    for (JsonNode article : articles) {
+                        String title = article.get("title").asText();
                         if (title != null && !title.isEmpty()) {
                             kafkaProducer.sendMessage(symbol, title);
                         }
