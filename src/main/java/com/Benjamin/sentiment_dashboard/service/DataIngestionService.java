@@ -1,6 +1,5 @@
 package com.Benjamin.sentiment_dashboard.service;
 
-import com.Benjamin.sentiment_dashboard.service.KafkaProducerService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,7 +8,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.*;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class DataIngestionService {
@@ -20,22 +22,37 @@ public class DataIngestionService {
     @Autowired
     private RestTemplate restTemplate;
 
+    @Autowired
+    private WatchlistService watchlistService;
+
     @Value("${api.gnews.key}")
     private String gnewsKey;
 
-    private static final List<String> SYMBOLS =
-            List.of("BTC", "ETH", "AAPL", "TSLA");
-
-    private static final List<String> QUERIES =
-            List.of("Bitcoin", "Ethereum", "Apple stock", "Tesla stock");
+    private static final Map<String, String> DEFAULT_SYMBOLS =
+            new HashMap<>() {{
+                put("BTC", "Bitcoin");
+                put("ETH", "Ethereum");
+                put("AAPL", "Apple stock");
+                put("TSLA", "Tesla stock");
+            }};
 
     @Scheduled(fixedRate = 3600000, initialDelay = 10000)
     public void fetchNewsData() {
         System.out.println("Fetching news data...");
 
-        for (int i = 0; i < SYMBOLS.size(); i++) {
-            String symbol = SYMBOLS.get(i);
-            String query = QUERIES.get(i);
+        Map<String, String> allSymbols = new HashMap<>(DEFAULT_SYMBOLS);
+
+        List<String> watchlistSymbols =
+                watchlistService.getWatchlistSymbols();
+        for (String symbol : watchlistSymbols) {
+            if (!allSymbols.containsKey(symbol)) {
+                allSymbols.put(symbol, symbol);
+            }
+        }
+
+        for (Map.Entry<String, String> entry : allSymbols.entrySet()) {
+            String symbol = entry.getKey();
+            String query = entry.getValue();
 
             try {
                 String url = "https://gnews.io/api/v4/search" +
@@ -53,7 +70,8 @@ public class DataIngestionService {
 
                 if (articles != null && articles.isArray()) {
                     for (JsonNode article : articles) {
-                        String title = article.get("title").asText();
+                        String title =
+                                article.get("title").asText();
                         if (title != null && !title.isEmpty()) {
                             kafkaProducer.sendMessage(symbol, title);
                         }
