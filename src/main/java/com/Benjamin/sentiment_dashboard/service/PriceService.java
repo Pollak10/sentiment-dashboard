@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import com.Benjamin.sentiment_dashboard.service.WatchlistService;
 
 @Service
 public class PriceService {
@@ -187,5 +188,13 @@ public class PriceService {
             latest.ifPresent(prices::add);
         }
         return prices;
+    }
+    public void fetchPriceForSymbol(String symbol, String type) {
+        System.out.println("Fetching immediate price for: " + symbol);
+        if (type.equals("crypto")) {
+            fetchCryptoPrices(List.of(symbol));
+        } else {
+            fetchStockPrice(symbol);
+        }
     }
 }

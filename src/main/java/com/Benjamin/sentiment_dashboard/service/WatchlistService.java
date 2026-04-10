@@ -6,10 +6,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,6 +24,13 @@ public class WatchlistService {
 
     @Autowired
     private RestTemplate restTemplate;
+
+    @Lazy
+    @Autowired
+    private DataIngestionService dataIngestionService;
+
+    @Autowired
+    private PriceService priceService;
 
     @Value("${api.finnhub.key}")
     private String finnhubKey;
@@ -37,38 +46,41 @@ public class WatchlistService {
         symbol = symbol.toUpperCase().trim();
 
         if (repository.existsBySymbol(symbol)) {
-            return Map.of(
-                    "success", false,
-                    "message", symbol + " is already in your watchlist"
-            );
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message",
+                    symbol + " is already in your watchlist");
+            return response;
         }
 
-        // Try stock first
         WatchlistItem stockItem = validateStock(symbol);
         if (stockItem != null) {
             repository.save(stockItem);
-            return Map.of(
-                    "success", true,
-                    "message", "Added " + stockItem.getName(),
-                    "item", stockItem
-            );
+            dataIngestionService.fetchNewsForSymbol(symbol);
+            priceService.fetchPriceForSymbol(symbol, "stock");
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Added " + stockItem.getName());
+            response.put("item", stockItem);
+            return response;
         }
 
-        // Try crypto
         WatchlistItem cryptoItem = validateCrypto(symbol);
         if (cryptoItem != null) {
             repository.save(cryptoItem);
-            return Map.of(
-                    "success", true,
-                    "message", "Added " + cryptoItem.getName(),
-                    "item", cryptoItem
-            );
+            dataIngestionService.fetchNewsForSymbol(symbol);
+            priceService.fetchPriceForSymbol(symbol, "crypto");
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Added " + cryptoItem.getName());
+            response.put("item", cryptoItem);
+            return response;
         }
 
-        return Map.of(
-                "success", false,
-                "message", "Could not find symbol: " + symbol
-        );
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", "Could not find symbol: " + symbol);
+        return response;
     }
 
     private WatchlistItem validateStock(String symbol) {
@@ -146,15 +158,15 @@ public class WatchlistService {
                 repository.findBySymbol(symbol.toUpperCase());
         if (item.isPresent()) {
             repository.delete(item.get());
-            return Map.of(
-                    "success", true,
-                    "message", symbol + " removed from watchlist"
-            );
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", symbol + " removed from watchlist");
+            return response;
         }
-        return Map.of(
-                "success", false,
-                "message", symbol + " not found in watchlist"
-        );
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", symbol + " not found in watchlist");
+        return response;
     }
 
     public List<String> getWatchlistSymbols() {

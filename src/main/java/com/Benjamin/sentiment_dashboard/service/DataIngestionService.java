@@ -84,4 +84,34 @@ public class DataIngestionService {
             }
         }
     }
+
+    public void fetchNewsForSymbol(String symbol) {
+        System.out.println("Fetching immediate news for: " + symbol);
+        try {
+            String url = "https://gnews.io/api/v4/search" +
+                    "?q=" + symbol +
+                    "&lang=en" +
+                    "&max=5" +
+                    "&apikey=" + gnewsKey;
+
+            ResponseEntity<String> response =
+                    restTemplate.getForEntity(url, String.class);
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode body = mapper.readTree(response.getBody());
+            JsonNode articles = body.get("articles");
+
+            if (articles != null && articles.isArray()) {
+                for (JsonNode article : articles) {
+                    String title = article.get("title").asText();
+                    if (title != null && !title.isEmpty()) {
+                        kafkaProducer.sendMessage(symbol, title);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Error fetching news for " +
+                    symbol + ": " + e.getMessage());
+        }
+    }
 }
